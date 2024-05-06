@@ -20,7 +20,12 @@
 #define DHTTYPE DHT22
 #define DHTPIN 26
 #define RELAYPIN 23
+#define flowSensorPin 19
 
+volatile int flow_frequency; // Measures flow sensor pulses
+unsigned long total_ml; // Total quantity of water in milliliters
+unsigned long prevMillis; // Previous millis value for time tracking
+const float calibrationFactor = 220; // Calibration factor for the sensor
 
 // #define MOISTURE_LOW  40
 // #define MOISTURE_HIGH  60
@@ -50,6 +55,10 @@ BLYNK_CONNECTED() {
   Blynk.setProperty(V3, "url", "https://docs.blynk.io/en/getting-started/what-do-i-need-to-blynk/how-quickstart-device-was-made");
 }
 
+void flow() { // Interrupt function
+  flow_frequency++;
+}
+
 void setup() {
   Serial.begin(115200);
   delay(100);
@@ -68,6 +77,10 @@ void setup() {
 
   Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
 
+  pinMode(flowSensorPin, INPUT);
+  digitalWrite(flowSensorPin, HIGH);
+  attachInterrupt(digitalPinToInterrupt(flowSensorPin), flow, RISING);
+  prevMillis = millis(); // Initialize prevMillis
   analogReadResolution(12);
   pinMode(RELAYPIN, OUTPUT);
   dht.begin();
@@ -112,11 +125,48 @@ void loop() {
 }
 
 void relayControl() {
+  // Your existing relay control logic can go here
   int hygro_analog = analogRead(HYGRO_PIN);
   if (hygro_analog < 3000 && hygro_analog > 1200) {
     digitalWrite(RELAYPIN, LOW);
     Serial.println("Valve Started, Water Flowing");
     Blynk.virtualWrite(V3, HIGH);
+
+    unsigned long currentMillis = millis();
+    unsigned long elapsedTime = currentMillis - prevMillis;
+
+    // Calculate flow rate every second
+    if (elapsedTime >= 1000) {
+      prevMillis = currentMillis; // Update prevMillis
+
+      // Pulse frequency (Hz) = 7.5Q, Q is flow rate in L/min.
+      // Milliliters/second = (flow_frequency / 7.5) * 1000
+      float ml_sec = (flow_frequency / calibrationFactor) * 1000.0; // Convert to ml/sec
+      Serial.print("Flow rate: ");
+      Serial.print(ml_sec);
+      Serial.println(" ml/sec");
+
+      // Calculate quantity of water flowed since last pulse
+      float flowed_ml = (ml_sec * elapsedTime) / 1000.0; // Convert to ml
+      total_ml += flowed_ml; // Accumulate ml
+      Serial.print("Quantity flowed since last pulse: ");
+      Serial.print(flowed_ml);
+      Serial.println(" ml");
+
+      Serial.print("Total quantity: ");
+      Serial.print(total_ml);
+      Serial.println(" ml");
+
+      flow_frequency = 0; // Reset flow counter
+      Blynk.virtualWrite(V2, total_ml);
+    }
+    if(total_ml > 1000){
+      digitalWrite(RELAYPIN, HIGH);
+      Serial.println("Total quantity exceeded 10000ml, stopping water");
+      total_ml = 0;
+      flow_frequency = 0;
+      Blynk.virtualWrite(V2, total_ml);
+    }
   } else {
     digitalWrite(RELAYPIN, HIGH);
     Serial.println("Valve Stopped, Water Not Flowing"); 
