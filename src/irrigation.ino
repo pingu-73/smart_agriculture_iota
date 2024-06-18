@@ -17,11 +17,10 @@
 #include <BlynkSimpleEsp32.h>
 #include <DHT.h>
 
-#define LED_BUILTIN 2
 #define DHTTYPE DHT22
 #define DHTPIN 26
-// #define RELAYPIN 25
-const int RELAYPIN = 25;
+#define RELAYPIN 27
+// const int RELAYPIN = 13;
 
 #define MOISTURE_LOW  40
 #define MOISTURE_HIGH  60
@@ -82,7 +81,7 @@ void loop() {
   Serial.print(hygroval);
   Serial.println("%");
   Blynk.virtualWrite(V4, hygroval);
-  delay(1000L);
+  delay(2000L); // Increased delay to 2000 milliseconds (2 seconds)
 
   humidity = dht.readHumidity();
   temp = dht.readTemperature();
@@ -105,28 +104,22 @@ void loop() {
     Blynk.virtualWrite(V1, temp);
     Blynk.virtualWrite(V0, humidity);
   }
-  delay(1000L);
+  delay(2000L); // Increased delay to 2000 milliseconds (2 seconds)
 
-  Serial.print("Relay State: ");Serial.println(relayState);
+  Serial.print("Relay State: ");
+  Serial.println(relayState);
 
   if (hygroval <= MOISTURE_LOW && relayState == 0) {
-    Serial.println("vaulve Started, Water Flowing");
     digitalWrite(RELAYPIN, LOW);
-    digitalWrite(LED_BUILTIN, HIGH);
+    Serial.println("Valve Started, Water Flowing");
     relayState = 1;
-    delay(400);
+    delay(2000L);
   } else if (hygroval >= MOISTURE_HIGH && relayState == 1) {
-    Serial.println("Vaulve Stopped, Water Not Flowing");
-    Blynk.virtualWrite(V3, HIGH);
     digitalWrite(RELAYPIN, HIGH);
+    Serial.println("Valve Stopped, Water Not Flowing");
+    Blynk.virtualWrite(V3, HIGH);
     relayState = 0;
-    digitalWrite(LED_BUILTIN, LOW); // Turn off LED
-    delay(400);
-  } //else {
-  //   digitalWrite(RELAYPIN, HIGH);
-  //   Blynk.virtualWrite(V3, HIGH);
-  //   digitalWrite(LED_BUILTIN, LOW); // Turn off LED
-  //   relayState = 0;
-  // }
-  delay(1000L);
+    delay(2000L);
+  }
+  delay(2000L);
 }
